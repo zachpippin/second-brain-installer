@@ -1,0 +1,24 @@
+# Optional Hermes registration. Do not commit a filled-in copy.
+# Verified against gbrain's Hermes guide: --args must be last, and several
+# variables share one --env flag. The equivalent command is:
+#
+#   printf 'Y\n' | hermes mcp add gbrain \
+#     --env GBRAIN_HOME="$HOME" GBRAIN_SOURCE=obsidian-vault \
+#     --connect-timeout 60 \
+#     --command "$(command -v gbrain)" \
+#     --args serve --surface full
+#
+# Confirm with `hermes mcp test gbrain`. The add command can exit 0 on failure.
+
+mcp_servers:
+  gbrain:
+    command: gbrain
+    args:
+      - serve
+      - --surface
+      - full
+    env:
+      GBRAIN_HOME: /path/to/home
+      GBRAIN_SOURCE: obsidian-vault
+    connect_timeout: 60.0
+    enabled: true

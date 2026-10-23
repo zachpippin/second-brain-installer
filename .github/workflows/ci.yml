@@ -1,0 +1,19 @@
+name: ci
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scrub private data
+        run: scripts/scrub-check.sh
+      - name: Scrub check self-test
+        run: scripts/scrub-check.sh --self-test
+      - name: Markdown and link lint
+        run: scripts/lint-markdown.sh
