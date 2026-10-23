@@ -72,6 +72,9 @@ PHONE_RE = re.compile(
     r"(?<!\d)(?:\+\d{1,3}[\s.-]?)?(?:\(\d{3}\)|\d{3})[\s.-]\d{3}[\s.-]\d{4}(?!\d)"
 )
 HOME_RE = re.compile(r"(?<![A-Za-z0-9])/(?:Users|home)/[A-Za-z0-9._-]+")
+# docs/demo.tape records against a placeholder account. Only that exact
+# directory name is ignored. Any other account name still fails.
+HOME_PLACEHOLDERS = {"/home/demo", "/Users/demo"}
 
 # Built so this file does not contain the forbidden hostname text.
 HOST_SUFFIX = "." + "ts" + "." + "net"
@@ -153,9 +156,10 @@ def scan_text(rel: str, text: str, denylist):
         add("ip", bad6[0])
     if HOST_RE.search(text) or HOST_WORD_RE.search(text):
         add("hostname", "overlay-network hostname")
-    home = HOME_RE.search(text)
-    if home:
-        add("home-path", home.group(0))
+    for home in HOME_RE.finditer(text):
+        if home.group(0) not in HOME_PLACEHOLDERS:
+            add("home-path", home.group(0))
+            break
     lowered = text.casefold()
     for term in denylist:
         if term.casefold() in lowered:
@@ -254,6 +258,10 @@ def self_test():
     expect("hostname word", "do not publish a " + HOST_WORD + " name\n", ["hostname"])
     expect("users home", "path /" + "Users" + "/ada/notes\n", ["home-path"])
     expect("linux home", "path /" + "home" + "/ada/notes\n", ["home-path"])
+    expect("placeholder home", "HOME=/home/demo\n", [])
+    expect("placeholder users", "path /Users/demo/notes\n", [])
+    expect("demo prefix", "path /" + "home" + "/demo-other/notes\n", ["home-path"])
+    expect("demo then real", "a /home/demo b /" + "home" + "/ada\n", ["home-path"])
     expect("aws key", "AKIA" + "IOSFODNN7EXAMPLE\n", ["secret"])
     expect("token assignment", "api_key=" + ("a" * 24) + "\n", ["secret"])
     expect("private key", KEY_HEADER + "\n", ["secret"])

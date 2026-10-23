@@ -6,6 +6,10 @@ This repository is a template [Obsidian](https://obsidian.md) vault plus scripts
 
 gbrain and Obsidian are separate projects. This kit is not affiliated with either of them.
 
+![Terminal demo of setup, search, and a simulated session write-back](docs/demo.gif)
+
+The clip is about half a minute. It copies the sample vault to `~/demo-vault`, searches for Sam Rivera's garden planner, writes a session note with a scripted stand-in (not a live model), syncs, and searches for that new text. The prompt is `demo@kit:~$` and the home directory is a placeholder account named `demo`. A still frame is at [docs/demo-still.png](docs/demo-still.png). Re-record with [vhs](https://github.com/charmbracelet/vhs) from [docs/demo.tape](docs/demo.tape).
+
 ## Demo
 
 Ask your agent:
