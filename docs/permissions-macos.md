@@ -1,31 +1,23 @@
 # macOS permissions
 
-These steps were not executed on a Mac while this installer was written. Follow them anyway; the script stops so you can.
+This path was run on an Apple Silicon Mac (macOS 26.6.2) without Homebrew. Install, search, rollback, pin, launchd, and uninstall worked. The steps below are what to do if a prompt appears.
 
 ## macos-gatekeeper
 
-The installer exits 10 with this id before the first copy into `$HOME/Applications`.
+The official disk image is downloaded with curl and copied to `$HOME/Applications/Obsidian.app`. On that Mac, the app had no `com.apple.quarantine` extended attribute, and `spctl --assess` reported `accepted, source=Notarized Developer ID` (Dynalist Inc.). The "downloaded from the internet" dialog did not appear.
 
-Tell the person:
+The installer stops with `install: PERMISSION macos-gatekeeper` only when that quarantine attribute is present on a copy it just installed, and `--yes` was not passed. A re-run that finds the same version already installed does not download the disk image again and does not stop for Gatekeeper.
 
-1. The next command downloads the official Obsidian disk image and copies `Obsidian.app` into the home Applications folder, not the system `/Applications` folder. That avoids an administrator password on later automatic updates.
-2. The first time they open Obsidian, macOS may say the app is from the internet.
-3. If it is blocked: open Finder, go to the home Applications folder, Control-click `Obsidian.app`, choose Open, then choose Open again in the dialog.
-4. If Finder still blocks it: System Settings, Privacy & Security, and allow Obsidian.
+If macOS does ask:
 
-After they confirm they understand the first-launch dialog, re-run:
+1. Control-click `Obsidian.app` in the home Applications folder, choose Open, then choose Open again.
+2. If it is still blocked: System Settings, Privacy & Security, and allow Obsidian.
 
-```sh
-scripts/install.sh --vault "$HOME/SecondBrain" --yes
-```
-
-Do not pass `--yes` before they confirm.
-
-It worked when doctor shows an Obsidian version and the person can open the app once.
+It worked when `scripts/doctor.sh` prints `obsidian: health ok bundle` and a version.
 
 ## macos-brew-password
 
-Only if you choose Homebrew instead of the disk image (`brew install --cask obsidian` or `brew install oven-sh/bun/bun`).
+Only if you choose Homebrew instead of the disk image (`brew install --cask obsidian` or `brew install oven-sh/bun/bun`). The tested install did not use Homebrew.
 
 Tell the person: a macOS password dialog or a Terminal `Password:` prompt is about to appear. Type the login password and press Enter. Do not paste the password into chat.
 
@@ -45,9 +37,11 @@ It worked when `scripts/install.sh --phase vault` prints `install: phase vault o
 
 ## macos-launchd
 
-`launchctl bootstrap` usually does not prompt. If it says the service is not approved:
+`launchctl bootstrap` usually does not prompt. The job labels are `io.github.second-brain-installer.sync` and `io.github.second-brain-installer.update`.
+
+If macOS says a service is not approved:
 
 1. System Settings, General, Login Items & Extensions.
-2. Allow the second-brain sync agent if it is listed.
+2. Allow those labels if they are listed.
 
 It worked when `scripts/doctor.sh` prints `sync-job: launchd sync loaded`.

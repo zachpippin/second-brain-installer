@@ -47,6 +47,8 @@ scripts/install.sh
 scripts/doctor.sh
 ```
 
+`scripts/install.sh --no-jobs` skips the background sync and update schedules.
+
 On Windows, run `scripts/install.ps1` in PowerShell. gbrain is installed inside WSL 2. That is the v1 Windows path. A native Windows gbrain install was not verified.
 
 Updates, pins, and rollback are described in [docs/updates.md](docs/updates.md).

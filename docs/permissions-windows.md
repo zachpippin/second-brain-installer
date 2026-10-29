@@ -67,8 +67,8 @@ Run `scripts/update.ps1 -UpgradeObsidian` only after the person agrees to the Us
 
 ## windows-task-scheduler
 
-Printed when registering `SecondBrainSync` or `SecondBrainUpdate` fails.
+Printed when registering `io.github.second-brain-installer.sync` or `io.github.second-brain-installer.update` fails.
 
 Tell the person to open Task Scheduler, confirm their user can create tasks, and re-run `scripts/install.ps1`. A User Account Control prompt means they choose Yes.
 
-It worked when `Get-ScheduledTask -TaskName SecondBrainSync` shows a task.
+It worked when `Get-ScheduledTask -TaskName io.github.second-brain-installer.sync` shows a task.

@@ -45,7 +45,7 @@ else
   status=1
 fi
 if command -v gbrain >/dev/null 2>&1; then
-  echo "doctor: gbrain $(gbrain --version 2>&1 | head -n 1 || true)"
+  echo "doctor: gbrain $(sb_normalize_gbrain_version "$(gbrain --version 2>&1 | head -n 1 || true)")"
 else
   echo "doctor: gbrain missing"
   status=1

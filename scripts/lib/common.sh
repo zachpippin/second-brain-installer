@@ -128,10 +128,21 @@ sys.stdout.write(found)
 PY
 }
 
+sb_normalize_gbrain_version() {
+  local raw=$1
+  raw=${raw#"gbrain "}
+  printf '%s' "$raw" | awk 'NF { $1=$1; print }'
+}
+
+sb_realpath() {
+  python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$1"
+}
+
 sb_record_gbrain() {
   local version ref
   sb_path_prepend_bun
   version=$(gbrain --version 2>&1 | head -n 1 || true)
+  version=$(sb_normalize_gbrain_version "$version")
   ref=$(sb_gbrain_ref)
   sb_state versions-set gbrain "$version"
   sb_state versions-set gbrain_ref "$ref"

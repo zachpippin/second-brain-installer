@@ -2,7 +2,7 @@
 # Install Obsidian, gbrain, the starter vault, and the background jobs.
 # Safe to re-run. Stops with exit 10 when a person has to approve an OS prompt.
 # Usage: scripts/install.sh [--vault PATH] [--yes] [--dry-run] [--skip-obsidian]
-#        [--obsidian-host linux|macos|windows] [--phase NAME]
+#        [--no-jobs] [--obsidian-host linux|macos|windows] [--phase NAME]
 set -euo pipefail
 
 ROOT=$(unset CDPATH; cd -- "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -17,11 +17,12 @@ VAULT="${SECOND_BRAIN_VAULT:-$HOME/SecondBrain}"
 ASSUME=0
 DRY=0
 SKIP_OBSIDIAN=0
+NO_JOBS=0
 OBSIDIAN_HOST=""
 PHASE=""
 
 usage() {
-  echo "Usage: scripts/install.sh [--vault PATH] [--yes] [--dry-run] [--skip-obsidian] [--obsidian-host HOST] [--phase NAME]"
+  echo "Usage: scripts/install.sh [--vault PATH] [--yes] [--dry-run] [--skip-obsidian] [--no-jobs] [--obsidian-host HOST] [--phase NAME]"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -31,6 +32,7 @@ while [[ $# -gt 0 ]]; do
     --yes) ASSUME=1 ;;
     --dry-run) DRY=1 ;;
     --skip-obsidian) SKIP_OBSIDIAN=1 ;;
+    --no-jobs) NO_JOBS=1 ;;
     --obsidian-host) OBSIDIAN_HOST=$2; shift ;;
     --phase) PHASE=$2; shift ;;
     *) echo "install: unknown argument: $1" >&2; usage >&2; exit 2 ;;
@@ -145,10 +147,16 @@ run_obsidian() {
       sb_obsidian_install_linux
       ;;
     macos)
-      if [[ $ASSUME -ne 1 ]]; then
-        sb_need_permission macos-gatekeeper
-      fi
+      SB_OBSIDIAN_FRESH=0
       sb_obsidian_install_macos
+      if [[ ${SB_OBSIDIAN_FRESH:-0} -eq 1 ]] && sb_obsidian_quarantined "$HOME/Applications/Obsidian.app"; then
+        echo "install: Obsidian.app is quarantined."
+        if [[ $ASSUME -ne 1 ]]; then
+          sb_need_permission macos-gatekeeper
+        fi
+      elif [[ ${SB_OBSIDIAN_FRESH:-0} -eq 1 ]]; then
+        echo "install: Obsidian.app is not quarantined. If macOS asks you to confirm the app, click Open."
+      fi
       ;;
     *)
       echo "install: Obsidian install for $os is handled by scripts/install.ps1" >&2
@@ -163,6 +171,9 @@ run_vault() {
     echo "install: dry-run would copy the starter vault to $VAULT and index it"
     return 0
   fi
+  mkdir -p -- "$(dirname "$VAULT")"
+  VAULT=$(sb_realpath "$VAULT")
+  echo "install: vault $VAULT"
   sb_path_prepend_bun
   "$ROOT/scripts/setup.sh" "$VAULT"
   sb_export_dirs
@@ -178,6 +189,11 @@ run_vault() {
 }
 
 run_jobs() {
+  if [[ $NO_JOBS -eq 1 ]]; then
+    echo "install: jobs skipped"
+    echo "install: phase jobs ok"
+    return 0
+  fi
   if [[ $DRY -eq 1 ]]; then
     echo "install: dry-run would install the sync and update jobs"
     return 0

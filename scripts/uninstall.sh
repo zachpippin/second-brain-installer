@@ -8,6 +8,8 @@ ROOT=$(unset CDPATH; cd -- "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 source "$ROOT/scripts/lib/common.sh"
 # shellcheck disable=SC1091
 source "$ROOT/scripts/lib/jobs.sh"
+# shellcheck disable=SC1091
+source "$ROOT/scripts/lib/obsidian.sh"
 
 REMOVE_VAULT=0
 while [[ $# -gt 0 ]]; do
@@ -24,7 +26,10 @@ done
 
 sb_export_dirs
 vault=$(sb_state config-get vault || true)
+app=$(sb_obsidian_app)
 sb_jobs_uninstall
+rm -rf "$app" "$app.previous"
+echo "uninstall: removed $app"
 rm -rf "$SB_DATA_DIR" "$SB_STATE_DIR" "$SB_CONFIG_DIR"
 if [[ $REMOVE_VAULT -eq 1 && -n $vault ]]; then
   echo "uninstall: removing vault $vault"

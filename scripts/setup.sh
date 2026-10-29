@@ -89,7 +89,10 @@ mkdir -p -- "$(dirname "$dest")"
 if [ "${dest#/}" = "$dest" ]; then
   dest=$(unset CDPATH; cd -- "$(dirname "$dest")" && pwd)/$(basename "$dest")
 fi
-template=$(unset CDPATH; cd -- "$root/vault" && pwd)
+# Resolve symlinks. On macOS /tmp is /private/tmp, and gbrain rejects a
+# content root that is not the real directory.
+dest=$(python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$dest")
+template=$(python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$(unset CDPATH; cd -- "$root/vault" && pwd)")
 
 if [ "$dest" = "$template" ]; then
   echo "setup: destination must be outside vault/" >&2

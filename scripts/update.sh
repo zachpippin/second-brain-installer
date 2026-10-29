@@ -74,14 +74,6 @@ assert_notes_unchanged() {
   fi
 }
 
-rollback_obsidian_file() {
-  local app=$1
-  if [[ -f $app.previous ]]; then
-    mv "$app.previous" "$app"
-    echo "update: restored the previous Obsidian binary"
-  fi
-}
-
 update_obsidian() {
   local pin current app meta version
   pin=$(sb_state pin-get obsidian)
@@ -93,25 +85,11 @@ update_obsidian() {
     return 0
   fi
   if [[ $FORCE_FAIL -eq 1 ]]; then
-    if [[ ! -f $app ]]; then
-      echo "update: Obsidian binary is missing, cannot simulate failure" >&2
-      return 1
-    fi
-    cp -a "$app" "$app.previous"
-    printf '%s\n' '#!/bin/sh' 'exit 1' > "$app"
-    chmod +x "$app"
-    if sb_obsidian_health "$app"; then
-      rollback_obsidian_file "$app"
-      echo "update: force-fail did not fail the Obsidian health check" >&2
-      return 1
-    fi
-    rollback_obsidian_file "$app"
-    if ! sb_obsidian_health "$app"; then
+    if ! sb_obsidian_force_fail "$app"; then
       sb_state log --component obsidian --action update --from-version "$current" --to-version "$current" --result rollback-failed --detail "forced failure"
       return 1
     fi
     sb_state log --component obsidian --action update --from-version "$current" --to-version "$current" --result rolled-back --detail "forced failure"
-    echo "update: obsidian rollback ok"
     return 0
   fi
   if [[ $(sb_state config-get obsidian_host) == windows ]]; then
@@ -144,7 +122,7 @@ update_obsidian() {
 update_gbrain() {
   local pin current ref
   pin=$(sb_state pin-get gbrain)
-  current=$(sb_state versions-get gbrain)
+  current=$(sb_normalize_gbrain_version "$(sb_state versions-get gbrain)")
   ref=$(sb_state versions-get gbrain_ref)
   if [[ -n $pin ]]; then
     echo "update: gbrain pinned at $pin"

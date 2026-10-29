@@ -67,14 +67,81 @@ exit 0
 EOF
   chmod +x "$dest/Obsidian.AppImage"
   printf '%s\n' "0.0.0-test" > "$dest/VERSION"
+  export SB_OBSIDIAN_FRESH=1
   echo "obsidian: installed test stub 0.0.0-test"
+}
+
+sb_obsidian_plist_version() {
+  python3 - "$1" <<'PY'
+import sys
+try:
+    import plistlib
+    with open(sys.argv[1], "rb") as handle:
+        data = plistlib.load(handle)
+    sys.stdout.write(str(data.get("CFBundleShortVersionString") or ""))
+except Exception:
+    sys.stdout.write("")
+PY
+}
+
+sb_obsidian_installed_version() {
+  local app plist version
+  app=$(sb_obsidian_app)
+  if [[ -d $app && -r $app/Contents/Info.plist ]]; then
+    version=$(sb_obsidian_plist_version "$app/Contents/Info.plist")
+    if [[ -n $version ]]; then
+      printf '%s\n' "$version"
+      return 0
+    fi
+  fi
+  if [[ -f $(sb_obsidian_dir)/VERSION ]]; then
+    tr -d '[:space:]' < "$(sb_obsidian_dir)/VERSION"
+  fi
+}
+
+sb_obsidian_quarantined() {
+  local target=$1
+  [[ $(sb_os) == macos ]] || return 1
+  command -v xattr >/dev/null 2>&1 || return 1
+  [[ -e $target ]] || return 1
+  xattr -p com.apple.quarantine "$target" >/dev/null 2>&1
+}
+
+sb_obsidian_restore_previous() {
+  local app=$1
+  if [[ ! -e $app.previous ]]; then
+    echo "obsidian: no previous copy to restore" >&2
+    return 1
+  fi
+  rm -rf "$app"
+  mv "$app.previous" "$app"
+  echo "update: restored the previous Obsidian app"
 }
 
 sb_obsidian_health() {
   local app=$1
-  local version_file size version
+  local version_file size version bin plist
   version_file="$(sb_obsidian_dir)/VERSION"
-  if [[ ! -x $app ]]; then
+  if [[ -d $app ]]; then
+    bin="$app/Contents/MacOS/Obsidian"
+    plist="$app/Contents/Info.plist"
+    if [[ ! -x $bin ]]; then
+      echo "obsidian: health failed, bundle executable missing: $bin" >&2
+      return 1
+    fi
+    if [[ ! -r $plist ]]; then
+      echo "obsidian: health failed, Info.plist is not readable" >&2
+      return 1
+    fi
+    version=$(sb_obsidian_plist_version "$plist")
+    if [[ -z $version ]]; then
+      echo "obsidian: health failed, Info.plist has no version" >&2
+      return 1
+    fi
+    echo "obsidian: health ok bundle $version"
+    return 0
+  fi
+  if [[ ! -f $app || ! -x $app ]]; then
     echo "obsidian: health failed, binary is not executable: $app" >&2
     return 1
   fi
@@ -93,11 +160,11 @@ sb_obsidian_health() {
     return 0
   fi
   size=$(wc -c < "$app" | tr -d '[:space:]')
-  if [[ "$size" -lt 1000000 ]]; then
-    echo "obsidian: health failed, binary is unexpectedly small ($size bytes)" >&2
+  if [[ -z $size || "$size" -lt 1000000 ]]; then
+    echo "obsidian: health failed, binary is unexpectedly small (${size:-0} bytes)" >&2
     return 1
   fi
-  if [[ -n ${DISPLAY:-} || -n ${WAYLAND_DISPLAY:-} ]]; then
+  if [[ -n ${DISPLAY:-} || -n ${WAYLAND_DISPLAY:-} ]] && command -v timeout >/dev/null 2>&1; then
     if ! timeout 25 "$app" --version >/dev/null 2>&1; then
       echo "obsidian: health failed, launch returned an error" >&2
       return 1
@@ -105,11 +172,41 @@ sb_obsidian_health() {
     echo "obsidian: health ok launched $version"
     return 0
   fi
+  if [[ -n ${DISPLAY:-} || -n ${WAYLAND_DISPLAY:-} ]]; then
+    echo "obsidian: health ok version $version (launch skipped, timeout is not installed)"
+    return 0
+  fi
   echo "obsidian: health ok version $version (launch skipped, no display)"
+}
+
+sb_obsidian_force_fail() {
+  local app=$1
+  if [[ ! -e $app ]]; then
+    echo "update: Obsidian app is missing, cannot simulate failure" >&2
+    return 1
+  fi
+  rm -rf "$app.previous"
+  mv "$app" "$app.previous"
+  printf '%s\n' '#!/bin/sh' 'exit 1' > "$app"
+  chmod +x "$app"
+  if sb_obsidian_health "$app"; then
+    sb_obsidian_restore_previous "$app" || true
+    echo "update: force-fail did not fail the Obsidian health check" >&2
+    return 1
+  fi
+  if ! sb_obsidian_restore_previous "$app"; then
+    return 1
+  fi
+  if ! sb_obsidian_health "$app"; then
+    echo "update: Obsidian health failed after rollback" >&2
+    return 1
+  fi
+  echo "update: obsidian rollback ok"
 }
 
 sb_obsidian_install_linux() {
   local dest current meta version url name tmp app
+  export SB_OBSIDIAN_FRESH=0
   if [[ ${SECOND_BRAIN_OBSIDIAN_STUB:-} == 1 ]]; then
     sb_obsidian_write_stub
     return 0
@@ -137,23 +234,23 @@ sb_obsidian_install_linux() {
     return 1
   fi
   chmod +x "$tmp"
-  if [[ -f $app ]]; then
+  if [[ -e $app ]]; then
+    rm -rf "$app.previous"
     mv "$app" "$app.previous"
   fi
   mv "$tmp" "$app"
   printf '%s\n' "$version" > "$dest/VERSION"
+  export SB_OBSIDIAN_FRESH=1
   if ! sb_obsidian_health "$app"; then
-    if [[ -f $app.previous ]]; then
-      mv "$app.previous" "$app"
-      echo "obsidian: restored the previous binary after a failed health check" >&2
-    fi
+    sb_obsidian_restore_previous "$app" || true
     return 1
   fi
   echo "obsidian: installed $version"
 }
 
 sb_obsidian_install_macos() {
-  local dest meta version url name tmp mount app plist
+  local dest meta version url name tmp mount app plist current
+  export SB_OBSIDIAN_FRESH=0
   dest="$HOME/Applications"
   mkdir -p "$dest"
   app="$dest/Obsidian.app"
@@ -161,6 +258,13 @@ sb_obsidian_install_macos() {
   version=$(printf '%s\n' "$meta" | sed -n '1p')
   url=$(printf '%s\n' "$meta" | sed -n '2p')
   name=$(printf '%s\n' "$meta" | sed -n '3p')
+  current=$(sb_obsidian_installed_version || true)
+  if [[ -n $current && $current == "$version" && -x $app/Contents/MacOS/Obsidian ]]; then
+    mkdir -p "$(sb_obsidian_dir)"
+    printf '%s\n' "$version" > "$(sb_obsidian_dir)/VERSION"
+    echo "obsidian: already installed $version ($name)"
+    return 0
+  fi
   echo "obsidian: downloading $name"
   mkdir -p "$(sb_obsidian_dir)"
   tmp=$(mktemp "$(sb_obsidian_dir)/download.XXXXXX.dmg")
@@ -205,6 +309,10 @@ PY
 )
   fi
   printf '%s\n' "$version" > "$(sb_obsidian_dir)/VERSION"
+  export SB_OBSIDIAN_FRESH=1
+  if ! sb_obsidian_health "$app"; then
+    sb_obsidian_restore_previous "$app" || true
+    return 1
+  fi
   echo "obsidian: installed $version in $app"
-  echo "obsidian: first launch may be blocked by Gatekeeper. See docs/permissions-macos.md."
 }

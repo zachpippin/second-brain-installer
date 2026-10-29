@@ -6,7 +6,8 @@
 [CmdletBinding()]
 param(
   [string]$Distro = 'Ubuntu',
-  [string]$Vault
+  [string]$Vault,
+  [switch]$NoJobs
 )
 
 Set-StrictMode -Version Latest
@@ -54,7 +55,11 @@ $vaultWsl = (& wsl.exe -d $Distro -- wslpath -a $vaultWin).Trim()
 
 Write-Output "install: wsl distro $Distro"
 Write-Output "install: vault $vaultWin"
-& wsl.exe -d $Distro -- bash -lc "cd '$repoWsl' && scripts/install.sh --vault '$vaultWsl' --skip-obsidian --obsidian-host windows"
+$jobFlag = ''
+if ($NoJobs) {
+  $jobFlag = '--no-jobs'
+}
+& wsl.exe -d $Distro -- bash -lc "cd '$repoWsl' && scripts/install.sh --vault '$vaultWsl' --skip-obsidian --obsidian-host windows $jobFlag"
 if ($LASTEXITCODE -ne 0) {
   exit $LASTEXITCODE
 }
@@ -72,6 +77,13 @@ if ($LASTEXITCODE -ne 0) {
   exit 10
 }
 
+if ($NoJobs) {
+  Write-Output 'install: jobs skipped'
+  Write-Output 'install: done'
+  Write-Output "install: open $vaultWin in Obsidian"
+  exit 0
+}
+
 $linuxHome = (& wsl.exe -d $Distro -- bash -lc 'printf %s "$HOME"').Trim()
 $sync = "$linuxHome/.local/share/second-brain/bin/sync-index.sh"
 $update = "$linuxHome/.local/share/second-brain/bin/update-index.sh"
@@ -80,8 +92,8 @@ $updateAction = New-ScheduledTaskAction -Execute 'wsl.exe' -Argument "-d $Distro
 $syncTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date).Date -RepetitionInterval (New-TimeSpan -Minutes 15) -RepetitionDuration ([TimeSpan]::MaxValue)
 $updateTrigger = New-ScheduledTaskTrigger -Daily -At '4:15am'
 try {
-  Register-ScheduledTask -TaskName 'SecondBrainSync' -Action $syncAction -Trigger $syncTrigger -Force | Out-Null
-  Register-ScheduledTask -TaskName 'SecondBrainUpdate' -Action $updateAction -Trigger $updateTrigger -Force | Out-Null
+  Register-ScheduledTask -TaskName 'io.github.second-brain-installer.sync' -Action $syncAction -Trigger $syncTrigger -Force | Out-Null
+  Register-ScheduledTask -TaskName 'io.github.second-brain-installer.update' -Action $updateAction -Trigger $updateTrigger -Force | Out-Null
 } catch {
   Write-Permission 'windows-task-scheduler'
   exit 10

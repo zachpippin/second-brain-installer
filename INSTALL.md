@@ -50,7 +50,9 @@ Linux or macOS, all phases:
 scripts/install.sh --vault "$HOME/SecondBrain"
 ```
 
-The default vault is `$HOME/SecondBrain`. Re-running does not overwrite notes that are already there.
+Pass `--no-jobs` to skip the sync and update schedules. That is useful for a test run, or when the person does not want background jobs.
+
+The default vault is `$HOME/SecondBrain`. Re-running does not overwrite notes that are already there. On macOS, a second run does not download the disk image again when the installed version already matches the latest release. The vault path is resolved with `realpath` before gbrain registers it, so a symlink such as `/tmp` on macOS is stored as its real directory.
 
 Expect these lines, in order:
 

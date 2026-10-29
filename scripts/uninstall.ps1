@@ -17,7 +17,7 @@ if ($env:OS -ne 'Windows_NT') {
   exit 2
 }
 
-foreach ($name in @('SecondBrainSync', 'SecondBrainUpdate')) {
+foreach ($name in @('io.github.second-brain-installer.sync', 'io.github.second-brain-installer.update', 'SecondBrainSync', 'SecondBrainUpdate')) {
   Unregister-ScheduledTask -TaskName $name -Confirm:$false -ErrorAction SilentlyContinue
   Write-Output "uninstall: task $name removed"
 }

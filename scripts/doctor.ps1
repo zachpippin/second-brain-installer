@@ -23,7 +23,7 @@ $wslStatus = $LASTEXITCODE
 
 Write-Output 'doctor: windows-obsidian'
 & winget.exe list --id Obsidian.Obsidian --exact --accept-source-agreements
-foreach ($name in @('SecondBrainSync', 'SecondBrainUpdate')) {
+foreach ($name in @('io.github.second-brain-installer.sync', 'io.github.second-brain-installer.update', 'SecondBrainSync', 'SecondBrainUpdate')) {
   $task = Get-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
   if ($task) {
     Write-Output "doctor: task $name $($task.State)"
