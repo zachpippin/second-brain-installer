@@ -28,9 +28,12 @@ echo "doctor: obsidian-host ${host:-missing}"
 echo "doctor: obsidian-version $(sb_state versions-get obsidian)"
 echo "doctor: obsidian-pin $(sb_state pin-get obsidian)"
 app=$(sb_obsidian_app)
+if [[ $(sb_obsidian_managed || true) == existing ]]; then
+  echo "doctor: obsidian-updates left to Obsidian's own updater ($app)"
+fi
 if [[ $host == windows ]]; then
   echo "doctor: obsidian is the Windows app; this shell does not launch it"
-elif [[ -x $app || -d $app ]]; then
+elif [[ -x $app || -d $app || $app == flatpak:* || $app == snap:* ]]; then
   if ! sb_obsidian_health "$app"; then
     status=1
   fi
@@ -53,8 +56,7 @@ fi
 echo "doctor: gbrain-recorded $(sb_state versions-get gbrain)"
 echo "doctor: gbrain-ref $(sb_state versions-get gbrain_ref)"
 echo "doctor: gbrain-pin $(sb_state pin-get gbrain)"
-echo "doctor: last-update"
-sb_state last
+echo "doctor: last-update $(sb_state last | tr -d '\n')"
 sb_jobs_status
 if [[ -n $vault && -d $vault ]] && command -v gbrain >/dev/null 2>&1; then
   if ! sb_index_health; then

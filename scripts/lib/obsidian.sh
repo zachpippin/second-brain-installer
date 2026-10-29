@@ -6,12 +6,110 @@ sb_obsidian_dir() {
 }
 
 sb_obsidian_app() {
-  local os
+  local recorded os
+  if [[ -f $(sb_obsidian_dir)/location ]]; then
+    recorded=$(tr -d '[:space:]' < "$(sb_obsidian_dir)/location")
+    if [[ -n $recorded ]]; then
+      printf '%s\n' "$recorded"
+      return 0
+    fi
+  fi
   os=$(sb_os)
   case "$os" in
     macos) printf '%s\n' "$HOME/Applications/Obsidian.app" ;;
     *) printf '%s\n' "$(sb_obsidian_dir)/Obsidian.AppImage" ;;
   esac
+}
+
+sb_obsidian_managed() {
+  if [[ -f $(sb_obsidian_dir)/managed ]]; then
+    tr -d '[:space:]' < "$(sb_obsidian_dir)/managed"
+  fi
+}
+
+sb_obsidian_mark_owned() {
+  local app
+  app=$(sb_realpath "$1")
+  mkdir -p "$SB_STATE_DIR"
+  printf '%s\n' "$app" > "$SB_STATE_DIR/obsidian-owned"
+}
+
+sb_obsidian_is_owned() {
+  local owned target
+  [[ -f $SB_STATE_DIR/obsidian-owned ]] || return 1
+  owned=$(tr -d '[:space:]' < "$SB_STATE_DIR/obsidian-owned")
+  target=$(sb_realpath "$1")
+  [[ -n $owned && $owned == "$target" ]]
+}
+
+sb_obsidian_remember() {
+  local app=$1 managed=$2
+  local dir
+  dir=$(sb_obsidian_dir)
+  mkdir -p "$dir"
+  printf '%s\n' "$app" > "$dir/location"
+  printf '%s\n' "$managed" > "$dir/managed"
+  if [[ $managed == installer ]]; then
+    sb_obsidian_mark_owned "$app"
+  fi
+}
+
+sb_obsidian_find_existing() {
+  local candidate ours system_app
+  case "$(sb_os)" in
+    macos)
+      system_app=${SB_OBSIDIAN_SYSTEM_APP:-/Applications/Obsidian.app}
+      if [[ -x $system_app/Contents/MacOS/Obsidian ]]; then
+        printf '%s\n' "$system_app"
+        return 0
+      fi
+      candidate="$HOME/Applications/Obsidian.app"
+      if [[ -x $candidate/Contents/MacOS/Obsidian ]] && ! sb_obsidian_is_owned "$candidate"; then
+        printf '%s\n' "$candidate"
+        return 0
+      fi
+      ;;
+    linux)
+      ours="$(sb_obsidian_dir)/Obsidian.AppImage"
+      if command -v obsidian >/dev/null 2>&1; then
+        candidate=$(command -v obsidian)
+        if [[ $(sb_realpath "$candidate") != $(sb_realpath "$ours") ]]; then
+          printf '%s\n' "$candidate"
+          return 0
+        fi
+      fi
+      for candidate in /opt/Obsidian/obsidian /usr/lib/obsidian/obsidian "$HOME/.local/bin/obsidian"; do
+        if [[ -x $candidate ]]; then
+          printf '%s\n' "$candidate"
+          return 0
+        fi
+      done
+      if command -v flatpak >/dev/null 2>&1 && flatpak info md.obsidian.Obsidian >/dev/null 2>&1; then
+        printf '%s\n' "flatpak:md.obsidian.Obsidian"
+        return 0
+      fi
+      if command -v snap >/dev/null 2>&1 && snap list obsidian >/dev/null 2>&1; then
+        printf '%s\n' "snap:obsidian"
+        return 0
+      fi
+      ;;
+  esac
+  return 1
+}
+
+sb_obsidian_use_existing() {
+  local existing version
+  existing=$1
+  sb_obsidian_remember "$existing" existing
+  version=""
+  if [[ -r $existing/Contents/Info.plist ]]; then
+    version=$(sb_obsidian_plist_version "$existing/Contents/Info.plist")
+  fi
+  if [[ -n $version ]]; then
+    printf '%s\n' "$version" > "$(sb_obsidian_dir)/VERSION"
+  fi
+  echo "obsidian: using existing install at $existing${version:+ ($version)}"
+  echo "obsidian: leaving updates to Obsidian's own updater"
 }
 
 sb_obsidian_release() {
@@ -120,8 +218,17 @@ sb_obsidian_restore_previous() {
 
 sb_obsidian_health() {
   local app=$1
-  local version_file size version bin plist
+  local version_file size version bin plist managed
   version_file="$(sb_obsidian_dir)/VERSION"
+  managed=$(sb_obsidian_managed || true)
+  if [[ $managed == existing && ( $app == flatpak:* || $app == snap:* ) ]]; then
+    echo "obsidian: health ok existing $app"
+    return 0
+  fi
+  if [[ $managed == existing && -f $app && -x $app && ! -d $app ]]; then
+    echo "obsidian: health ok existing $app"
+    return 0
+  fi
   if [[ -d $app ]]; then
     bin="$app/Contents/MacOS/Obsidian"
     plist="$app/Contents/Info.plist"
@@ -204,16 +311,36 @@ sb_obsidian_force_fail() {
   echo "update: obsidian rollback ok"
 }
 
+sb_obsidian_remove_if_owned() {
+  local owned
+  if [[ ! -f $SB_STATE_DIR/obsidian-owned ]]; then
+    echo "uninstall: left Obsidian in place; this installer did not record installing it"
+    return 0
+  fi
+  owned=$(tr -d '[:space:]' < "$SB_STATE_DIR/obsidian-owned")
+  if [[ -z $owned || ! -e $owned ]]; then
+    echo "uninstall: owned Obsidian path is already gone"
+    return 0
+  fi
+  rm -rf "$owned" "$owned.previous"
+  echo "uninstall: removed $owned"
+}
+
 sb_obsidian_install_linux() {
   local dest current meta version url name tmp app
   export SB_OBSIDIAN_FRESH=0
   if [[ ${SECOND_BRAIN_OBSIDIAN_STUB:-} == 1 ]]; then
     sb_obsidian_write_stub
+    sb_obsidian_remember "$(sb_obsidian_dir)/Obsidian.AppImage" installer
     return 0
   fi
   dest=$(sb_obsidian_dir)
   mkdir -p "$dest"
   app="$dest/Obsidian.AppImage"
+  if existing=$(sb_obsidian_find_existing); then
+    sb_obsidian_use_existing "$existing"
+    return 0
+  fi
   meta=$(sb_obsidian_release linux "$(uname -m)")
   version=$(printf '%s\n' "$meta" | sed -n '1p')
   url=$(printf '%s\n' "$meta" | sed -n '2p')
@@ -223,6 +350,7 @@ sb_obsidian_install_linux() {
     current=$(tr -d '[:space:]' < "$dest/VERSION")
   fi
   if [[ -n $current && $current == "$version" && -x $app ]]; then
+    sb_obsidian_remember "$app" installer
     echo "obsidian: already installed $version ($name)"
     return 0
   fi
@@ -240,6 +368,7 @@ sb_obsidian_install_linux() {
   fi
   mv "$tmp" "$app"
   printf '%s\n' "$version" > "$dest/VERSION"
+  sb_obsidian_remember "$app" installer
   export SB_OBSIDIAN_FRESH=1
   if ! sb_obsidian_health "$app"; then
     sb_obsidian_restore_previous "$app" || true
@@ -258,10 +387,13 @@ sb_obsidian_install_macos() {
   version=$(printf '%s\n' "$meta" | sed -n '1p')
   url=$(printf '%s\n' "$meta" | sed -n '2p')
   name=$(printf '%s\n' "$meta" | sed -n '3p')
+  if existing=$(sb_obsidian_find_existing); then
+    sb_obsidian_use_existing "$existing"
+    return 0
+  fi
   current=$(sb_obsidian_installed_version || true)
   if [[ -n $current && $current == "$version" && -x $app/Contents/MacOS/Obsidian ]]; then
-    mkdir -p "$(sb_obsidian_dir)"
-    printf '%s\n' "$version" > "$(sb_obsidian_dir)/VERSION"
+    sb_obsidian_remember "$app" installer
     echo "obsidian: already installed $version ($name)"
     return 0
   fi
@@ -273,27 +405,42 @@ sb_obsidian_install_macos() {
     echo "obsidian: download failed" >&2
     return 1
   fi
-  if [[ -d $app ]]; then
-    rm -rf "$app.previous"
-    mv "$app" "$app.previous"
-  fi
   mount=$(mktemp -d)
   if ! hdiutil attach -nobrowse -mountpoint "$mount" "$tmp"; then
     rm -f "$tmp"
+    rm -rf "$mount"
     echo "obsidian: could not mount the disk image" >&2
     return 1
   fi
-  local bundle
+  local bundle staged
   bundle=$(find "$mount" -maxdepth 2 -name 'Obsidian.app' -type d | head -n 1)
   if [[ -z $bundle ]]; then
     hdiutil detach "$mount" >/dev/null || true
+    rm -f "$tmp"
+    rm -rf "$mount"
     echo "obsidian: disk image did not contain Obsidian.app" >&2
     return 1
   fi
-  cp -R "$bundle" "$app"
+  staged="$(sb_obsidian_dir)/Obsidian.app.staging"
+  rm -rf "$staged"
+  cp -R "$bundle" "$staged"
   hdiutil detach "$mount" >/dev/null || true
   rm -f "$tmp"
   rmdir "$mount" 2>/dev/null || true
+  if ! sb_obsidian_health "$staged"; then
+    rm -rf "$staged"
+    echo "obsidian: staged app failed the health check; the previous app was left in place" >&2
+    return 1
+  fi
+  if [[ -e $app ]]; then
+    rm -rf "$app.previous"
+    mv "$app" "$app.previous"
+  fi
+  if ! mv "$staged" "$app"; then
+    sb_obsidian_restore_previous "$app" || true
+    rm -rf "$staged"
+    return 1
+  fi
   plist="$app/Contents/Info.plist"
   if [[ -f $plist ]]; then
     version=$(python3 - "$plist" "$version" <<'PY'
@@ -309,6 +456,7 @@ PY
 )
   fi
   printf '%s\n' "$version" > "$(sb_obsidian_dir)/VERSION"
+  sb_obsidian_remember "$app" installer
   export SB_OBSIDIAN_FRESH=1
   if ! sb_obsidian_health "$app"; then
     sb_obsidian_restore_previous "$app" || true

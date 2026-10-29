@@ -64,17 +64,37 @@ if ($LASTEXITCODE -ne 0) {
   exit $LASTEXITCODE
 }
 
+$existingObsidian = $null
+foreach ($candidate in @(
+    (Join-Path $env:LOCALAPPDATA 'Obsidian\Obsidian.exe'),
+    (Join-Path $env:ProgramFiles 'Obsidian\Obsidian.exe')
+  )) {
+  if ($candidate -and (Test-Path -LiteralPath $candidate)) {
+    $existingObsidian = $candidate
+    break
+  }
+}
 $winget = Get-Command winget.exe -ErrorAction SilentlyContinue
-if (-not $winget) {
+if (-not $existingObsidian -and $winget) {
+  $listed = & winget.exe list --id Obsidian.Obsidian --exact --accept-source-agreements 2>$null
+  if ($LASTEXITCODE -eq 0 -and $listed -match 'Obsidian') {
+    $existingObsidian = 'winget:Obsidian.Obsidian'
+  }
+}
+if (-not $existingObsidian -and -not $winget) {
   Write-Permission 'windows-winget'
   exit 10
 }
-
-Write-Output 'install: installing Obsidian with winget. A User Account Control prompt may appear.'
-& winget.exe install --id Obsidian.Obsidian --exact --scope user --accept-package-agreements --accept-source-agreements
-if ($LASTEXITCODE -ne 0) {
-  Write-Permission 'windows-obsidian-installer'
-  exit 10
+if ($existingObsidian) {
+  Write-Output "obsidian: using existing install at $existingObsidian"
+  Write-Output "obsidian: leaving updates to Obsidian's own updater"
+} else {
+  Write-Output 'install: installing Obsidian with winget. A User Account Control prompt may appear.'
+  & winget.exe install --id Obsidian.Obsidian --exact --scope user --accept-package-agreements --accept-source-agreements
+  if ($LASTEXITCODE -ne 0) {
+    Write-Permission 'windows-obsidian-installer'
+    exit 10
+  }
 }
 
 if ($NoJobs) {

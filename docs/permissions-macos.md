@@ -4,7 +4,9 @@ This path was run on an Apple Silicon Mac (macOS 26.6.2) without Homebrew. Insta
 
 ## macos-gatekeeper
 
-The official disk image is downloaded with curl and copied to `$HOME/Applications/Obsidian.app`. On that Mac, the app had no `com.apple.quarantine` extended attribute, and `spctl --assess` reported `accepted, source=Notarized Developer ID` (Dynalist Inc.). The "downloaded from the internet" dialog did not appear.
+If `/Applications/Obsidian.app` is already installed, the installer reuses it and does not copy a second app into the home Applications folder. Updates of that copy are left to Obsidian.
+
+When it does install, the official disk image is downloaded with curl and copied to `$HOME/Applications/Obsidian.app`. On the tested Mac, that app had no `com.apple.quarantine` extended attribute, and `spctl --assess` reported `accepted, source=Notarized Developer ID` (Dynalist Inc.). The "downloaded from the internet" dialog did not appear.
 
 The installer stops with `install: PERMISSION macos-gatekeeper` only when that quarantine attribute is present on a copy it just installed, and `--yes` was not passed. A re-run that finds the same version already installed does not download the disk image again and does not stop for Gatekeeper.
 

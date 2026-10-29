@@ -79,6 +79,11 @@ update_obsidian() {
   pin=$(sb_state pin-get obsidian)
   current=$(sb_state versions-get obsidian)
   app=$(sb_obsidian_app)
+  if ! sb_obsidian_is_owned "$app"; then
+    echo "update: leaving $app to Obsidian's own updater"
+    sb_state log --component obsidian --action update --from-version "$current" --to-version "$current" --result skipped-existing --detail "not installed by this installer"
+    return 0
+  fi
   if [[ -n $pin ]]; then
     echo "update: obsidian pinned at $pin"
     sb_state log --component obsidian --action update --from-version "$pin" --to-version "$pin" --result skipped-pin --detail "pin set"
@@ -139,11 +144,11 @@ update_gbrain() {
     bun install -g "github:garrytan/gbrain#${ref}"
     gbrain apply-migrations --yes --no-autopilot-install
     if ! sb_index_health; then
-      sb_state log --component gbrain --action update --from-version "$current" --to-version "$ref" --result rollback-failed --detail "forced failure"
+      sb_state log --component gbrain --action update --from-version "$current" --to-version "$current" --result rollback-failed --detail "forced failure" --ref "$ref"
       return 1
     fi
     sb_record_gbrain
-    sb_state log --component gbrain --action update --from-version "$current" --to-version "$ref" --result rolled-back --detail "forced failure"
+    sb_state log --component gbrain --action update --from-version "$current" --to-version "$(sb_normalize_gbrain_version "$(sb_state versions-get gbrain)")" --result rolled-back --detail "forced failure" --ref "$ref"
     echo "update: gbrain rollback ok"
     return 0
   fi
@@ -156,9 +161,9 @@ update_gbrain() {
     bun install -g "github:garrytan/gbrain#${ref}"
     gbrain apply-migrations --yes --no-autopilot-install
     if sb_index_health; then
-      sb_state log --component gbrain --action update --from-version "$current" --to-version "$ref" --result rolled-back --detail "search failed"
+      sb_state log --component gbrain --action update --from-version "$current" --to-version "$current" --result rolled-back --detail "search failed" --ref "$ref"
     else
-      sb_state log --component gbrain --action update --from-version "$current" --to-version "$ref" --result rollback-failed --detail "search failed"
+      sb_state log --component gbrain --action update --from-version "$current" --to-version "$current" --result rollback-failed --detail "search failed" --ref "$ref"
     fi
     return 1
   fi

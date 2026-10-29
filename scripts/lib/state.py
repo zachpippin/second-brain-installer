@@ -94,6 +94,8 @@ def cmd_log(args) -> int:
         "result": args.result,
         "detail": args.detail,
     }
+    if args.ref:
+        record["ref"] = args.ref
     log_path = state_dir() / "update-log.jsonl"
     with log_path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(record) + "\n")
@@ -106,7 +108,8 @@ def cmd_last(_args) -> int:
     if not path.is_file():
         sys.stdout.write("none\n")
         return 0
-    sys.stdout.write(path.read_text(encoding="utf-8"))
+    data = json.loads(path.read_text(encoding="utf-8"))
+    sys.stdout.write(json.dumps(data, separators=(",", ":")) + "\n")
     return 0
 
 
@@ -165,6 +168,7 @@ def main() -> int:
     log.add_argument("--to-version", default="")
     log.add_argument("--result", required=True)
     log.add_argument("--detail", default="")
+    log.add_argument("--ref", default="")
     log.set_defaults(func=cmd_log)
 
     last = sub.add_parser("last")

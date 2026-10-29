@@ -82,8 +82,10 @@ Expect `install: done` and a vault path under the person's user profile. Open th
 | --- | --- | --- |
 | prereqs | Requires git, Python 3, curl, and unzip | Install the missing command with the OS package manager, then re-run |
 | bun | Uses Bun 1.4.4 or newer, or downloads the official Bun zip from GitHub | Do not pipe a shell installer from the internet. Re-run the phase |
-| obsidian | Linux: official AppImage in the user data directory. macOS: official disk image into `$HOME/Applications` | Read the permissions doc. Do not continue if the health line failed |
+| obsidian | Reuses an Obsidian already on the machine when one is found (`/Applications` on macOS, a `obsidian` command, Flatpak, or Snap on Linux, or the usual Windows install folders). Otherwise Linux gets an official AppImage and macOS gets an official disk image in `$HOME/Applications` | Read the permissions doc. Do not continue if the health line failed |
 | vault | Copies `vault/` and indexes it with `gbrain init --pglite --no-embedding --non-interactive --search-mode conservative --db-only` | If the source id already points somewhere else, the script stops and prints `gbrain sources set-path`. Do not delete the old path |
+
+Bun may print `Blocked 1 postinstall` while installing gbrain. That is expected and harmless: Bun skipped gbrain's postinstall, and the installer runs `gbrain apply-migrations --yes --no-autopilot-install` itself.
 | jobs | Sync every 15 minutes and update daily at 04:15 | Linux uses a systemd user timer, or cron if systemd `--user` is unavailable. macOS uses launchd. Windows uses Task Scheduler calling WSL |
 | verify | `gbrain search "offline bed map"` finds the garden planner note | Run `scripts/doctor.sh` and fix the first failing line |
 

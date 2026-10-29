@@ -8,7 +8,7 @@ A daily job runs `scripts/update.sh` at 04:15. A separate job runs the index syn
 | --- | --- | --- |
 | gbrain | `bun install -g github:garrytan/gbrain#latest-stable`, then migrations | Reinstall the git ref recorded before the update, then run search |
 | Obsidian on Linux | Official AppImage swapped in the user data directory | The previous file is moved back if the health check fails |
-| Obsidian on macOS | Official disk image copied to `$HOME/Applications`. A re-run skips the download when that version is already installed. The daily updater does not download a newer image yet | `scripts/update.sh --force-fail` moves the `.app` aside, fails the bundle health check, and moves it back |
+| Obsidian on macOS | If `/Applications/Obsidian.app` (or another copy this installer did not create) already exists, it is reused and left to Obsidian's own updater. Otherwise the official disk image is copied to `$HOME/Applications`, and a re-run skips the download when that version matches | `scripts/update.sh --force-fail` rolls back only a copy this installer recorded as its own |
 | Obsidian on Windows | Not part of the daily job. `scripts/update.ps1 -UpgradeObsidian` runs winget only when asked | Not verified. The version printed before the upgrade is only a record |
 
 gbrain updates are refused when no rollback ref was recorded. That is intentional.
@@ -55,4 +55,4 @@ scripts/update.sh --force-fail
 scripts/uninstall.sh
 ```
 
-This removes the jobs, the AppImage, and on macOS both `$HOME/Applications/Obsidian.app` and `Obsidian.app.previous`. It does not remove notes, Bun, or the gbrain database. `--remove-vault` deletes the notes directory. On Windows, `scripts/uninstall.ps1` also removes the scheduled tasks, including older task names from earlier installs.
+This removes the jobs and an Obsidian copy only when the installer recorded that it installed that copy. An existing `/Applications` app, a Linux package, or a Windows install is left in place. It does not remove notes, Bun, or the gbrain database. `--remove-vault` deletes the notes directory. On Windows, `scripts/uninstall.ps1` also removes the scheduled tasks, including older task names from earlier installs.

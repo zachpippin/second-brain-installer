@@ -26,10 +26,8 @@ done
 
 sb_export_dirs
 vault=$(sb_state config-get vault || true)
-app=$(sb_obsidian_app)
 sb_jobs_uninstall
-rm -rf "$app" "$app.previous"
-echo "uninstall: removed $app"
+sb_obsidian_remove_if_owned
 rm -rf "$SB_DATA_DIR" "$SB_STATE_DIR" "$SB_CONFIG_DIR"
 if [[ $REMOVE_VAULT -eq 1 && -n $vault ]]; then
   echo "uninstall: removing vault $vault"
