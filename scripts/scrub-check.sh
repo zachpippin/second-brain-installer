@@ -5,7 +5,7 @@
 # Usage: scripts/scrub-check.sh [--self-test] [--root DIR]
 set -eu
 
-root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
+root=$(unset CDPATH; cd -- "$(dirname "$0")/.." && pwd)
 mode=scan
 while [ $# -gt 0 ]; do
   case "$1" in

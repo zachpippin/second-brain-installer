@@ -1,15 +1,7 @@
-# Vault agent instructions
+# Vault policy copies
 
-The harness entry point is the repository-root `AGENTS.md`. This copy is the same policy for people browsing `agents/`.
+The installer instructions are the repository-root [AGENTS.md](../AGENTS.md).
 
-Follow the root file. If the two ever disagree, the root `AGENTS.md` wins and this copy should be updated to match it.
+The rule file that ships inside the starter vault is [vault/AGENTS.md](../vault/AGENTS.md): search the vault before answering, and write decisions back. `scripts/setup.sh` copies that file with the rest of `vault/`.
 
-Policy, in short:
-
-- Search gbrain before asking the user something the vault might answer.
-- Update the existing wiki page instead of creating a duplicate.
-- Append every session to `sessions/YYYY-MM-DD.md`.
-- Never store secrets, phone numbers, home paths, or non-`example.com` emails.
-- Cite the inbox note or other source on the wiki page and in the session log.
-
-Sample notes are fiction about Sam Rivera. See the root `AGENTS.md` for commands and frontmatter.
+If this summary and `vault/AGENTS.md` disagree, `vault/AGENTS.md` is the note policy.

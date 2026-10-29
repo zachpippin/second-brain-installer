@@ -12,7 +12,7 @@
 #   GBRAIN_SEARCH_MODE  conservative, balanced, or tokenmax (fresh init only)
 set -eu
 
-root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
+root=$(unset CDPATH; cd -- "$(dirname "$0")/.." && pwd)
 dest=
 source_id=${GBRAIN_SOURCE:-obsidian-vault}
 search_mode=${GBRAIN_SEARCH_MODE:-conservative}
@@ -87,9 +87,9 @@ fi
 
 mkdir -p -- "$(dirname "$dest")"
 if [ "${dest#/}" = "$dest" ]; then
-  dest=$(CDPATH= cd -- "$(dirname "$dest")" && pwd)/$(basename "$dest")
+  dest=$(unset CDPATH; cd -- "$(dirname "$dest")" && pwd)/$(basename "$dest")
 fi
-template=$(CDPATH= cd -- "$root/vault" && pwd)
+template=$(unset CDPATH; cd -- "$root/vault" && pwd)
 
 if [ "$dest" = "$template" ]; then
   echo "setup: destination must be outside vault/" >&2
@@ -129,14 +129,17 @@ if ! command -v gbrain >/dev/null 2>&1; then
     exit 1
   fi
   if ! command -v bun >/dev/null 2>&1; then
-    echo "setup: Bun 1.4.0 or newer is required to install gbrain." >&2
+    echo "setup: Bun 1.4.4 or newer is required to install gbrain." >&2
     echo "Install Bun from https://bun.sh and re-run." >&2
     exit 1
   fi
   bun_major=$(bun --version | cut -d. -f1)
   bun_minor=$(bun --version | cut -d. -f2)
-  if [ "$bun_major" -lt 1 ] || { [ "$bun_major" -eq 1 ] && [ "$bun_minor" -lt 4 ]; }; then
-    echo "setup: Bun $(bun --version) is older than 1.4.0" >&2
+  bun_patch=$(bun --version | cut -d. -f3 | cut -c1-2)
+  if [ "$bun_major" -lt 1 ] \
+    || { [ "$bun_major" -eq 1 ] && [ "$bun_minor" -lt 4 ]; } \
+    || { [ "$bun_major" -eq 1 ] && [ "$bun_minor" -eq 4 ] && [ "$bun_patch" -lt 4 ]; }; then
+    echo "setup: Bun $(bun --version) is older than 1.4.4" >&2
     exit 1
   fi
   echo "setup: installing gbrain from github:garrytan/gbrain#latest-stable"
@@ -174,11 +177,11 @@ for dirpath, dirnames, filenames in os.walk(src):
         shutil.copy2(source, target)
 PY
 
-if [ ! -f "$dest/AGENTS.md" ]; then
-  cp "$root/AGENTS.md" "$dest/AGENTS.md"
+if [ ! -f "$dest/AGENTS.md" ] && [ -f "$template/AGENTS.md" ]; then
+  cp "$template/AGENTS.md" "$dest/AGENTS.md"
 fi
-if [ ! -f "$dest/CLAUDE.md" ]; then
-  cp "$root/CLAUDE.md" "$dest/CLAUDE.md"
+if [ ! -f "$dest/CLAUDE.md" ] && [ -f "$template/CLAUDE.md" ]; then
+  cp "$template/CLAUDE.md" "$dest/CLAUDE.md"
 fi
 
 if ! git -C "$dest" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
@@ -284,6 +287,7 @@ This script does not enable ambient writeback, embeddings, or skill publishing.
 Init may suggest \`gbrain config set memory.auto_writeback salient\`. Leave it
 unset unless you want that. Keyword search works without an API key.
 
-Agent instructions were copied into the vault when AGENTS.md and CLAUDE.md
-were absent. MCP examples are in $root/scripts/mcp/.
+The starter vault includes AGENTS.md. Search before asking, and write
+decisions back into the wiki and sessions/. MCP examples are in
+$root/scripts/mcp/.
 EOF

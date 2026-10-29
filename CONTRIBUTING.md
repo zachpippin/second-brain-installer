@@ -8,6 +8,8 @@ Before you open a pull request:
 scripts/scrub-check.sh
 scripts/scrub-check.sh --self-test
 scripts/lint-markdown.sh
+shellcheck -s bash scripts/install.sh scripts/update.sh scripts/doctor.sh scripts/uninstall.sh scripts/lib/*.sh
+shellcheck -s sh scripts/setup.sh scripts/sync.sh scripts/scrub-check.sh
 ```
 
 `.scrub-denylist` at the repository root is gitignored. Use it for private terms that must fail the scrub check locally. Do not commit that file.

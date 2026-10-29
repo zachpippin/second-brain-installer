@@ -3,7 +3,7 @@
 # Usage: scripts/lint-markdown.sh [--root DIR]
 set -eu
 
-root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
+root=$(unset CDPATH; cd -- "$(dirname "$0")/.." && pwd)
 while [ $# -gt 0 ]; do
   case "$1" in
     --root)
@@ -94,6 +94,8 @@ def check_frontmatter(path: Path, text: str):
         return
     if rel.startswith("vault/.obsidian/"):
         return
+    if path.name in {"AGENTS.md", "CLAUDE.md"}:
+        return
     checked_notes += 1
     block = frontmatter_block(text)
     if block is None:
@@ -181,7 +183,9 @@ for path in files:
 
 note_files = [
     p for p in markdown_files(vault)
-    if "templates" not in p.relative_to(vault).parts and ".obsidian" not in p.relative_to(vault).parts
+    if "templates" not in p.relative_to(vault).parts
+    and ".obsidian" not in p.relative_to(vault).parts
+    and p.name not in {"AGENTS.md", "CLAUDE.md"}
 ]
 if len(note_files) < 18:
     errors.append(f"vault sample notes: expected at least 18, found {len(note_files)}")

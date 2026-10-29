@@ -57,7 +57,7 @@ if [ "${dest#/}" = "$dest" ]; then
     echo "sync: directory does not exist: $(dirname "$dest")" >&2
     exit 1
   fi
-  dest=$(CDPATH= cd -- "$(dirname "$dest")" && pwd)/$(basename "$dest")
+  dest=$(unset CDPATH; cd -- "$(dirname "$dest")" && pwd)/$(basename "$dest")
 fi
 
 if [ ! -d "$dest" ]; then
