@@ -1,0 +1,25 @@
+name: ci
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scrub private data
+        run: scripts/scrub-check.sh
+      - name: Scrub check self-test
+        run: scripts/scrub-check.sh --self-test
+      - name: Markdown and link lint
+        run: scripts/lint-markdown.sh
+      - name: Shellcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+          shellcheck -s bash scripts/install.sh scripts/update.sh scripts/doctor.sh scripts/uninstall.sh scripts/lib/*.sh
+          shellcheck -s sh scripts/setup.sh scripts/sync.sh scripts/scrub-check.sh scripts/lint-markdown.sh

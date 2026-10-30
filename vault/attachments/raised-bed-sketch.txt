@@ -1,0 +1,6 @@
+Placeholder sketch for the fictional Bed Map project.
+
+Four rectangles along a fence, labeled north to south:
+herbs, greens, tomatoes, beans.
+
+Not a measured drawing. The inbox note that mentions this file is the capture.

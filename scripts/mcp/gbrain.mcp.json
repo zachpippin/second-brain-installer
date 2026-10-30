@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "gbrain": {
+      "command": "gbrain",
+      "args": ["serve", "--surface", "full"],
+      "env": {
+        "GBRAIN_SOURCE": "obsidian-vault"
+      }
+    }
+  }
+}
