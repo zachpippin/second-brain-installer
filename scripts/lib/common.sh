@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # Shared paths for the second-brain installer. Source this file.
+# shellcheck disable=SC1091
+source "$(dirname "${BASH_SOURCE[0]}")/gbrain-pin.sh"
 
 sb_repo_root() {
   local lib_dir
@@ -93,39 +95,15 @@ sb_index_health() {
   echo "index: search ok"
 }
 
-sb_gbrain_ref() {
-  python3 - "$HOME/.bun" <<'PY'
-import pathlib
-import re
-import sys
+sb_read_stored_line() {
+  local line
+  IFS= read -r line < "$1" || true
+  line=${line%$'\r'}
+  printf '%s' "$line"
+}
 
-root = pathlib.Path(sys.argv[1])
-pattern = re.compile(r"github:garrytan/gbrain#([0-9a-fA-F]{7,40})")
-found = ""
-if not root.is_dir():
-    sys.exit(0)
-for path in (
-    root / "install/global/bun.lock",
-    root / "install/global/package.json",
-):
-    if path.is_file():
-        match = pattern.search(path.read_text(encoding="utf-8", errors="replace"))
-        if match:
-            found = match.group(1)
-if not found:
-    lock_dir = root / "install/global"
-    if lock_dir.is_dir():
-        for path in lock_dir.rglob("*"):
-            if not path.is_file() or path.stat().st_size > 2_000_000:
-                continue
-            if path.suffix not in {".lock", ".json", ".txt"} and path.name not in {"bun.lock"}:
-                continue
-            match = pattern.search(path.read_text(encoding="utf-8", errors="replace"))
-            if match:
-                found = match.group(1)
-                break
-sys.stdout.write(found)
-PY
+sb_gbrain_ref() {
+  sb_gbrain_resolved_commit "${BUN_INSTALL:-$HOME/.bun}"
 }
 
 sb_normalize_gbrain_version() {

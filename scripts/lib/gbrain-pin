@@ -1,0 +1,8 @@
+# Pinned gbrain install. setup and update install this commit, not the
+# moving latest-stable tag. Package version at this commit: 0.60.549.0
+# (refs/tags/latest-stable on 2026-11-02).
+#
+# integrity is the sha512 Bun 1.4 records for that git dependency.
+# To bump, see docs/updates.md.
+commit a131fb20ef4aafd017f0c6a6565ce5627dc46897
+integrity sha512-WLrp9vOicLCD6DJ3LngquUyu5zDvVWJZCIK7cM+MDarSxCD2Mfgjtz8NP6ytf7T79i9EATiu4hbh9uxZiExvRA==

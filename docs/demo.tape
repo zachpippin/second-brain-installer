@@ -6,8 +6,10 @@
 # vhs writes a high-color GIF. The gifsicle step keeps it under 2 MB.
 #
 # docs/demo-shell.sh starts bash with HOME=/home/demo and a minimal PATH.
-# Install Bun and gbrain for that placeholder account before recording:
-#   HOME=/home/demo BUN_INSTALL=/home/demo/.bun bun install -g github:garrytan/gbrain#latest-stable
+# Install Bun and the commit in scripts/lib/gbrain-pin for that placeholder
+# account before recording. Do not pass the moving latest-stable tag:
+#   commit=$(awk '/^commit / { print $2 }' scripts/lib/gbrain-pin)
+#   HOME=/home/demo BUN_INSTALL=/home/demo/.bun bun install -g "github:garrytan/gbrain#${commit}"
 #
 # The hidden preface copies this checkout to ~/kit and removes any previous
 # ~/demo-vault and ~/.gbrain. The picture then runs setup, a search for the

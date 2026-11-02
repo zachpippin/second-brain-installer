@@ -21,5 +21,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y shellcheck
-          shellcheck -s bash scripts/install.sh scripts/update.sh scripts/doctor.sh scripts/uninstall.sh scripts/lib/*.sh
+          shellcheck -s bash scripts/install.sh scripts/update.sh scripts/doctor.sh scripts/uninstall.sh scripts/lib/*.sh scripts/test-lib.sh
           shellcheck -s sh scripts/setup.sh scripts/sync.sh scripts/scrub-check.sh scripts/lint-markdown.sh
+      - name: Installer library tests
+        run: scripts/test-lib.sh
