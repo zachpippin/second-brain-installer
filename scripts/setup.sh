@@ -13,6 +13,8 @@
 set -eu
 
 root=$(unset CDPATH; cd -- "$(dirname "$0")/.." && pwd)
+# shellcheck disable=SC1091
+. "$root/scripts/lib/gbrain-pin.sh"
 dest=
 source_id=${GBRAIN_SOURCE:-obsidian-vault}
 search_mode=${GBRAIN_SEARCH_MODE:-conservative}
@@ -127,8 +129,9 @@ export PATH
 
 if ! command -v gbrain >/dev/null 2>&1; then
   if [ "$skip_install" -eq 1 ]; then
+    pin_commit=$(sb_gbrain_pin_field "$root/scripts/lib/gbrain-pin" commit) || exit 1
     echo "setup: gbrain is not on PATH. Install with:" >&2
-    echo "  bun install -g github:garrytan/gbrain#latest-stable" >&2
+    echo "  bun install -g github:garrytan/gbrain#${pin_commit}" >&2
     exit 1
   fi
   if ! command -v bun >/dev/null 2>&1; then
@@ -145,9 +148,8 @@ if ! command -v gbrain >/dev/null 2>&1; then
     echo "setup: Bun $(bun --version) is older than 1.4.4" >&2
     exit 1
   fi
-  echo "setup: installing gbrain from github:garrytan/gbrain#latest-stable"
   echo "setup: do not install the unrelated npm package named gbrain"
-  bun install -g github:garrytan/gbrain#latest-stable
+  sb_gbrain_install_pinned "$root/scripts/lib/gbrain-pin"
 fi
 
 if ! command -v gbrain >/dev/null 2>&1; then

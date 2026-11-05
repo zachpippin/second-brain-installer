@@ -125,7 +125,7 @@ update_obsidian() {
 }
 
 update_gbrain() {
-  local pin current ref
+  local pin current ref pinned_commit
   pin=$(sb_state pin-get gbrain)
   current=$(sb_normalize_gbrain_version "$(sb_state versions-get gbrain)")
   ref=$(sb_state versions-get gbrain_ref)
@@ -152,9 +152,21 @@ update_gbrain() {
     echo "update: gbrain rollback ok"
     return 0
   fi
-  echo "update: installing gbrain latest-stable"
-  bun install -g github:garrytan/gbrain#latest-stable
+  pinned_commit=$(sb_gbrain_pin_field "$ROOT/scripts/lib/gbrain-pin" commit)
+  if [[ $ref == "$pinned_commit" ]]; then
+    echo "update: gbrain already at pinned commit $pinned_commit"
+    sb_state log --component gbrain --action update --from-version "$current" --to-version "$current" --result unchanged --detail "pinned commit" --ref "$pinned_commit"
+    return 0
+  fi
+  echo "update: installing pinned gbrain commit $pinned_commit"
   echo "update: do not install the unrelated npm package named gbrain"
+  if ! sb_gbrain_install_pinned "$ROOT/scripts/lib/gbrain-pin"; then
+    echo "update: gbrain pin check failed, rolling back to $ref"
+    bun install -g "github:garrytan/gbrain#${ref}" || true
+    gbrain apply-migrations --yes --no-autopilot-install || true
+    sb_state log --component gbrain --action update --from-version "$current" --to-version "$current" --result rolled-back --detail "pin check failed" --ref "$ref"
+    return 1
+  fi
   gbrain apply-migrations --yes --no-autopilot-install
   if ! sb_index_health; then
     echo "update: gbrain health failed, rolling back to $ref"
@@ -168,7 +180,7 @@ update_gbrain() {
     return 1
   fi
   sb_record_gbrain
-  sb_state log --component gbrain --action update --from-version "$current" --to-version "$(sb_state versions-get gbrain)" --result ok --detail "latest-stable"
+  sb_state log --component gbrain --action update --from-version "$current" --to-version "$(sb_state versions-get gbrain)" --result ok --detail "pinned commit" --ref "$pinned_commit"
   echo "update: gbrain ok"
 }
 

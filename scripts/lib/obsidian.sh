@@ -8,7 +8,7 @@ sb_obsidian_dir() {
 sb_obsidian_app() {
   local recorded os
   if [[ -f $(sb_obsidian_dir)/location ]]; then
-    recorded=$(tr -d '[:space:]' < "$(sb_obsidian_dir)/location")
+    recorded=$(sb_read_stored_line "$(sb_obsidian_dir)/location")
     if [[ -n $recorded ]]; then
       printf '%s\n' "$recorded"
       return 0
@@ -37,7 +37,7 @@ sb_obsidian_mark_owned() {
 sb_obsidian_is_owned() {
   local owned target
   [[ -f $SB_STATE_DIR/obsidian-owned ]] || return 1
-  owned=$(tr -d '[:space:]' < "$SB_STATE_DIR/obsidian-owned")
+  owned=$(sb_read_stored_line "$SB_STATE_DIR/obsidian-owned")
   target=$(sb_realpath "$1")
   [[ -n $owned && $owned == "$target" ]]
 }
@@ -317,7 +317,7 @@ sb_obsidian_remove_if_owned() {
     echo "uninstall: left Obsidian in place; this installer did not record installing it"
     return 0
   fi
-  owned=$(tr -d '[:space:]' < "$SB_STATE_DIR/obsidian-owned")
+  owned=$(sb_read_stored_line "$SB_STATE_DIR/obsidian-owned")
   if [[ -z $owned || ! -e $owned ]]; then
     echo "uninstall: owned Obsidian path is already gone"
     return 0

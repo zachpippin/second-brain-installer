@@ -20,6 +20,66 @@ function Write-Permission {
   Write-Output 'install: tell the person what to click or type, then re-run this command.'
 }
 
+function ConvertTo-WindowsArgument {
+  param([Parameter(Mandatory = $true)][string]$Value)
+  if ($Value -notmatch '[\s"]') {
+    return $Value
+  }
+  $builder = New-Object System.Text.StringBuilder
+  [void]$builder.Append('"')
+  $slashes = 0
+  foreach ($char in $Value.ToCharArray()) {
+    if ($char -eq '\') {
+      $slashes++
+      continue
+    }
+    if ($char -eq '"') {
+      [void]$builder.Append(('\' * (($slashes * 2) + 1)))
+      [void]$builder.Append('"')
+      $slashes = 0
+      continue
+    }
+    if ($slashes -gt 0) {
+      [void]$builder.Append(('\' * $slashes))
+      $slashes = 0
+    }
+    [void]$builder.Append($char)
+  }
+  if ($slashes -gt 0) {
+    [void]$builder.Append(('\' * ($slashes * 2)))
+  }
+  [void]$builder.Append('"')
+  return $builder.ToString()
+}
+
+function ConvertTo-BashSingleQuoted {
+  param([Parameter(Mandatory = $true)][string]$Value)
+  $quote = "'"
+  $escaped = $Value.Replace($quote, ($quote + '\' + $quote))
+  return $quote + $escaped + $quote
+}
+
+function Get-WslScheduledTaskArgument {
+  param(
+    [Parameter(Mandatory = $true)][string]$Distro,
+    [Parameter(Mandatory = $true)][string]$Script
+  )
+  # Task Scheduler parses Arguments with CommandLineToArgvW. Single quotes do
+  # not keep a path with spaces together, and bash still needs its own quoting.
+  $command = ConvertTo-BashSingleQuoted $Script
+  return "-d $(ConvertTo-WindowsArgument $Distro) -- bash -lc $(ConvertTo-WindowsArgument $command)"
+}
+
+# scripts/test-lib.sh sets this to print one Task Scheduler argument and exit.
+if ($env:SB_QUOTE_TASK_SCRIPT) {
+  $quoteDistro = $Distro
+  if ($env:SB_QUOTE_TASK_DISTRO) {
+    $quoteDistro = $env:SB_QUOTE_TASK_DISTRO
+  }
+  Write-Output (Get-WslScheduledTaskArgument -Distro $quoteDistro -Script $env:SB_QUOTE_TASK_SCRIPT)
+  exit 0
+}
+
 if ($env:OS -ne 'Windows_NT') {
   Write-Error 'install.ps1 is the Windows entry point. On macOS or Linux run scripts/install.sh'
   exit 2
@@ -107,8 +167,8 @@ if ($NoJobs) {
 $linuxHome = (& wsl.exe -d $Distro -- bash -lc 'printf %s "$HOME"').Trim()
 $sync = "$linuxHome/.local/share/second-brain/bin/sync-index.sh"
 $update = "$linuxHome/.local/share/second-brain/bin/update-index.sh"
-$syncAction = New-ScheduledTaskAction -Execute 'wsl.exe' -Argument "-d $Distro -- bash -lc '$sync'"
-$updateAction = New-ScheduledTaskAction -Execute 'wsl.exe' -Argument "-d $Distro -- bash -lc '$update'"
+$syncAction = New-ScheduledTaskAction -Execute 'wsl.exe' -Argument (Get-WslScheduledTaskArgument -Distro $Distro -Script $sync)
+$updateAction = New-ScheduledTaskAction -Execute 'wsl.exe' -Argument (Get-WslScheduledTaskArgument -Distro $Distro -Script $update)
 $syncTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date).Date -RepetitionInterval (New-TimeSpan -Minutes 15) -RepetitionDuration ([TimeSpan]::MaxValue)
 $updateTrigger = New-ScheduledTaskTrigger -Daily -At '4:15am'
 try {

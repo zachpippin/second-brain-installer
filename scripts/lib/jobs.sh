@@ -13,6 +13,83 @@ sb_cron_without_ours() {
     || true
 }
 
+# Scheduler entries are not shell scripts until cron runs them. Quote paths so a
+# home directory, XDG data directory, or vault path with spaces stays one argument.
+sb_shell_quote() {
+  python3 -c 'import shlex, sys; sys.stdout.write(shlex.quote(sys.argv[1]))' "$1"
+}
+
+sb_cron_quote() {
+  local quoted
+  quoted=$(sb_shell_quote "$1")
+  # cron turns an unescaped % into a newline before the shell parses quotes.
+  quoted=${quoted//%/\\%}
+  printf '%s' "$quoted"
+}
+
+sb_jobs_cron_line() {
+  local schedule=$1 program=$2 logfile=$3 label=$4
+  printf '%s %s >> %s 2>&1 # %s\n' \
+    "$schedule" \
+    "$(sb_cron_quote "$program")" \
+    "$(sb_cron_quote "$logfile")" \
+    "$label"
+}
+
+sb_systemd_quote() {
+  local text=$1
+  # systemd splits ExecStart on whitespace, expands % specifiers, and applies
+  # C-style escapes inside double quotes. $ is left alone (it is not expanded).
+  text=${text//\\/\\\\}
+  text=${text//\"/\\\"}
+  text=${text//%/%%}
+  printf '"%s"' "$text"
+}
+
+sb_systemd_oneshot_unit() {
+  local description=$1 program=$2 exec_start
+  exec_start=$(sb_systemd_quote "$program")
+  cat <<EOF
+[Unit]
+Description=$description
+
+[Service]
+Type=oneshot
+ExecStart=$exec_start
+EOF
+}
+
+sb_xml_text() {
+  local text=$1
+  # In ${var//pat/repl}, & is the matched text. \& keeps a literal ampersand.
+  text=${text//&/\&amp;}
+  text=${text//</\&lt;}
+  text=${text//>/\&gt;}
+  printf '%s' "$text"
+}
+
+sb_launchd_plist() {
+  local label=$1 program=$2 schedule=$3
+  local label_xml program_xml
+  label_xml=$(sb_xml_text "$label")
+  program_xml=$(sb_xml_text "$program")
+  cat <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>${label_xml}</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>${program_xml}</string>
+  </array>
+${schedule}
+</dict>
+</plist>
+EOF
+}
+
 sb_write_runners() {
   local vault source repo sync_runner update_runner bun_dir
   vault=$(sb_state config-get vault)
@@ -51,8 +128,8 @@ PY
 
 sb_jobs_install_cron() {
   local sync_line update_line current filtered
-  sync_line="*/15 * * * * $SB_DATA_DIR/bin/sync-index.sh >> $SB_STATE_DIR/sync-job.log 2>&1 # ${SB_JOB_SYNC}"
-  update_line="15 4 * * * $SB_DATA_DIR/bin/update-index.sh >> $SB_STATE_DIR/update-job.log 2>&1 # ${SB_JOB_UPDATE}"
+  sync_line=$(sb_jobs_cron_line "*/15 * * * *" "$SB_DATA_DIR/bin/sync-index.sh" "$SB_STATE_DIR/sync-job.log" "$SB_JOB_SYNC")
+  update_line=$(sb_jobs_cron_line "15 4 * * *" "$SB_DATA_DIR/bin/update-index.sh" "$SB_STATE_DIR/update-job.log" "$SB_JOB_UPDATE")
   if ! command -v crontab >/dev/null 2>&1; then
     return 1
   fi
@@ -71,14 +148,8 @@ sb_jobs_install_systemd() {
   local unit_dir
   unit_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
   mkdir -p "$unit_dir"
-  cat > "$unit_dir/${SB_JOB_SYNC}.service" <<EOF
-[Unit]
-Description=Sync the second-brain vault into gbrain
-
-[Service]
-Type=oneshot
-ExecStart=$SB_DATA_DIR/bin/sync-index.sh
-EOF
+  sb_systemd_oneshot_unit "Sync the second-brain vault into gbrain" \
+    "$SB_DATA_DIR/bin/sync-index.sh" > "$unit_dir/${SB_JOB_SYNC}.service"
   cat > "$unit_dir/${SB_JOB_SYNC}.timer" <<'EOF'
 [Unit]
 Description=Sync the second-brain vault into gbrain
@@ -91,14 +162,8 @@ Persistent=true
 [Install]
 WantedBy=timers.target
 EOF
-  cat > "$unit_dir/${SB_JOB_UPDATE}.service" <<EOF
-[Unit]
-Description=Update Obsidian and gbrain for the second brain
-
-[Service]
-Type=oneshot
-ExecStart=$SB_DATA_DIR/bin/update-index.sh
-EOF
+  sb_systemd_oneshot_unit "Update Obsidian and gbrain for the second brain" \
+    "$SB_DATA_DIR/bin/update-index.sh" > "$unit_dir/${SB_JOB_UPDATE}.service"
   cat > "$unit_dir/${SB_JOB_UPDATE}.timer" <<'EOF'
 [Unit]
 Description=Daily Obsidian and gbrain update
@@ -122,45 +187,17 @@ sb_jobs_install_launchd() {
   mkdir -p "$dir"
   sync_plist="$dir/${SB_JOB_SYNC}.plist"
   update_plist="$dir/${SB_JOB_UPDATE}.plist"
-  cat > "$sync_plist" <<EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key>
-  <string>${SB_JOB_SYNC}</string>
-  <key>ProgramArguments</key>
-  <array>
-    <string>$SB_DATA_DIR/bin/sync-index.sh</string>
-  </array>
-  <key>StartInterval</key>
+  sb_launchd_plist "$SB_JOB_SYNC" "$SB_DATA_DIR/bin/sync-index.sh" '  <key>StartInterval</key>
   <integer>900</integer>
   <key>RunAtLoad</key>
-  <false/>
-</dict>
-</plist>
-EOF
-  cat > "$update_plist" <<EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key>
-  <string>${SB_JOB_UPDATE}</string>
-  <key>ProgramArguments</key>
-  <array>
-    <string>$SB_DATA_DIR/bin/update-index.sh</string>
-  </array>
-  <key>StartCalendarInterval</key>
+  <false/>' > "$sync_plist"
+  sb_launchd_plist "$SB_JOB_UPDATE" "$SB_DATA_DIR/bin/update-index.sh" '  <key>StartCalendarInterval</key>
   <dict>
     <key>Hour</key>
     <integer>4</integer>
     <key>Minute</key>
     <integer>15</integer>
-  </dict>
-</dict>
-</plist>
-EOF
+  </dict>' > "$update_plist"
   domain="gui/$(id -u)"
   launchctl bootout "$domain" "$sync_plist" >/dev/null 2>&1 || true
   launchctl bootout "$domain" "$update_plist" >/dev/null 2>&1 || true
